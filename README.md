@@ -6,7 +6,7 @@ API-Football verileriyle gerçek maç fikstürü ve bookmaker oranlarını anali
 
 API-Football'ın `/odds` endpoint'i sayfa başına 10 maç döndürür. Tüm sonuçları tek bir HTTP isteğinde almak mümkün değildir. Uygulama artık `paging.total` bilgisini okuyup sayfaları sırayla/toplu şekilde çeker; varsayılan olarak en fazla 9 odds sayfası (90 oranlı maç) alır.
 
-Takım ve lig adları `/fixtures?date=...` yanıtından alınır, oranlarla fixture ID üzerinden birleştirilir. Böylece odds yanıtında bulunmayan takım adları tamamlanır. Bir yenilemede 1 fixtures isteği + 1-9 odds isteği yapılır.
+Takım ve lig adları `/fixtures?date=...` yanıtından alınır, oranlarla fixture ID üzerinden birleştirilir. Böylece odds yanıtında bulunmayan takım adları tamamlanır. Bir yenilemede 1 fixtures isteği + 0-9 odds isteği yapılır. Oran endpoint'i hata verirse fikstürler yine gösterilir ve oran alanları boş kalır.
 
 API-Football ön maç oranları yaklaşık her 3 saatte güncellenir; bu nedenle varsayılan önbellek 3 saattir. Dokümantasyon, odds için 1 çağrı/3 saat önerir. Ücretsiz planın günlük kotasını korumak için 9 sayfalık sınır vardır. Günün maç sayısı 90'dan fazlaysa bazı oranlı maçlar listelenmeyebilir.
 
@@ -29,8 +29,8 @@ npm install
 npm start
 ```
 
-API anahtarı yoksa gerçek veri modu hata verir; sahte maç üretmez.
+API anahtarı yoksa gerçek veri modu hata verir; sahte maç üretmez. API geçici olarak hata verirse bellekteki son başarılı fikstür korunur. Render yeniden başlatıldığında bellek cache'i sıfırlanır.
 
 ## Tahmin modeli
 
-Oranlardan türetilen piyasa verileri yerel olasılık modeliyle karşılaştırılır. Bu uygulama bağımsız doğrulanmış/eğitilmiş bir makine öğrenmesi modeli değildir. Tahminler garanti vermez; bahis kayıp riski taşır.
+Oran varsa yerel olasılık modeli oranlarla karşılaştırılır. Oran yoksa da 1X2 için olasılık tahmini üretilir; oran, implied probability ve değer alanları boş kalır. Oranı olmayan maçlar toplam oranlı kuponlara dahil edilmez. Takım formu/istatistikleri yoksa model tarafsız başlangıç olasılıkları kullanır ve güven seviyesini düşük tutar; takım verisi uydurmaz. Bu uygulama bağımsız doğrulanmış/eğitilmiş bir makine öğrenmesi modeli değildir. Tahminler garanti vermez; bahis kayıp riski taşır.
