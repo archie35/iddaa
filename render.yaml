@@ -12,8 +12,8 @@ services:
       - key: HIGHLIGHTLY_TIMEZONE
         value: Europe/Istanbul
       - key: HIGHLIGHTLY_MAX_FORM_TEAMS
-        value: "20"
+        value: "40"
       - key: BULLETIN_CACHE_MS
-        value: "28800000"
+        value: "43200000"
       - key: ALLOW_DEMO
         value: "false"
