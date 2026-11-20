@@ -48,6 +48,8 @@ export function analyzeMatches(ms = []) {
       const hasForm = homeForm !== null && awayForm !== null;
       const hasGoalStats = [homeGF, homeGA, awayGF, awayGA].every(x => x !== null);
       const hasTeamStats = hasForm || hasGoalStats;
+      const homePlayed = Number(f.homePlayed) || (homeForm !== null ? 5 : 0);
+      const awayPlayed = Number(f.awayPlayed) || (awayForm !== null ? 5 : 0);
 
       // Veri yokken tarafsız bir başlangıç olasılığı kullanılır; takım istatistiği uydurulmaz.
       let homeRaw = 0.44;
@@ -137,8 +139,23 @@ export function analyzeMatches(ms = []) {
       const confidenceBase = quality === "provider" ? 0.56 : quality === "team_stats" ? 0.49 : 0.38;
       const confidence = clamp(confidenceBase + Math.abs(best.p - 1 / 3) * 0.45, 0.38, quality === "fixture_only" ? 0.48 : 0.76);
 
+      const analysisNotes = [];
+      if (hasForm) {
+        if (homeForm - awayForm > 0.15) analysisNotes.push(m.home + " son maç formunda daha iyi");
+        else if (awayForm - homeForm > 0.15) analysisNotes.push(m.away + " son maç formunda daha iyi");
+        else analysisNotes.push("İki takımın son maç formu birbirine yakın");
+      }
+      if (hasGoalStats) {
+        if (homeGF > awayGF + 0.35) analysisNotes.push(m.home + " gol üretiminde önde");
+        else if (awayGF > homeGF + 0.35) analysisNotes.push(m.away + " gol üretiminde önde");
+        if (homeGA > awayGA + 0.35) analysisNotes.push(m.home + " daha fazla gol yiyor");
+        else if (awayGA > homeGA + 0.35) analysisNotes.push(m.away + " daha fazla gol yiyor");
+      }
+      if (!hasForm && !hasGoalStats) analysisNotes.push("Son 5 maç verisi alınamadı; takım formuna dayalı yorum yapılamıyor");
+
       return {
         ...m,
+        formAnalysis: { homeLast5: f.homeLast5 || null, awayLast5: f.awayLast5 || null, homePlayed, awayPlayed, homePoints: f.homePoints ?? null, awayPoints: f.awayPoints ?? null, homeGF, homeGA, awayGF, awayGA, notes: analysisNotes },
         prediction: {
           key: best.key,
           label: best.label,
