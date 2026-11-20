@@ -47,10 +47,21 @@ function render(items) {
     const dataQuality = match.dataQuality === "team_stats" || match.dataQuality === "provider"
       ? "Takım verisi mevcut"
       : "Sınırlı veri";
+    const form = match.formAnalysis || {};
+    const formLine = (team, sequence, played, gf, ga) => {
+      const score = gf !== null && gf !== undefined && ga !== null && ga !== undefined ? " · Gol ort.: " + gf + " attı / " + ga + " yedi" : "";
+      return `<div class="formline"><b>${team}:</b> <span class="form-sequence">${sequence || "Veri yok"}</span><span class="muted"> (${played || 0}/5 maç${score})</span></div>`;
+    };
+    const formHtml = `<div class="formbox"><div class="formtitle">Son 5 maç formu</div>
+      ${formLine(match.home, form.homeLast5, form.homePlayed, form.homeGF, form.homeGA)}
+      ${formLine(match.away, form.awayLast5, form.awayPlayed, form.awayGF, form.awayGA)}
+      ${(form.notes || []).length ? `<div class="formnotes">${form.notes.join(" · ")}</div>` : ""}
+    </div>`;
     return `<article class="card">
       <div class="cardhead">${rank}<span class="muted">${match.league} · ${date}</span></div>
       <b>${match.home} — ${match.away}</b>
       ${pickHtml}
+      ${formHtml}
       <div class="muted">Veri kalitesi: ${dataQuality} · ${match.modelSource || "Yerel model"}</div>
     </article>`;
   }).join("");
@@ -65,8 +76,9 @@ async function load() {
     render(matches);
     const staleNote = bulletin.stale ? " · Son başarılı veri gösteriliyor (API yenilenemedi)" : "";
     const oddsNote = bulletin.oddsNotice ? ` · ${bulletin.oddsNotice}` : "";
+    const formNote = ` · Son 5 maç verisi: ${bulletin.formTeamsWithStats ?? 0}/${bulletin.formTeamsRequested ?? 0} takım`;
     $("#status").textContent =
-      `${matches.length} maç analiz edildi · ${bulletin.provider || bulletin.source} · Güven sırasına göre listelendi${staleNote}${oddsNote}`;
+      `${matches.length} büyük lig maçı analiz edildi · ${bulletin.provider || bulletin.source} · Güven sırasına göre listelendi${formNote}${staleNote}${oddsNote}`;
   } catch (error) {
     $("#status").textContent = error.message;
   }
