@@ -1,11 +1,17 @@
 const API_BASE = process.env.HIGHLIGHTLY_BASE_URL || "https://soccer.highlightly.net";
 const TZ = process.env.HIGHLIGHTLY_TIMEZONE || "Europe/Istanbul";
 const CACHE_MS = Math.max(60_000, Number(process.env.BULLETIN_CACHE_MS || 28_800_000));
-const FORM_TEAM_LIMIT = Math.max(0, Math.min(40, Number(process.env.HIGHLIGHTLY_MAX_FORM_TEAMS || 20)));
+const FORM_TEAM_LIMIT = Math.max(0, Math.min(40, Number(process.env.HIGHLIGHTLY_MAX_FORM_TEAMS || 40)));
 
 let cache = { at: 0, data: null };
 let refreshPromise = null;
 const formCache = new Map();
+const FORM_CACHE_MS = 86_400_000;
+const MAJOR_LEAGUE_PATTERNS = [/premier league/i, /la liga|laliga/i, /bundesliga/i, /serie a/i, /ligue 1/i, /eredivisie/i, /primeira liga|liga portugal/i, /super lig|süper lig|turkish super/i, /pro league/i, /scottish premiership/i, /champions league/i, /europa league/i, /conference league/i];
+function isMajorLeague(match) {
+  const name = String(match.league?.name || "").trim();
+  return MAJOR_LEAGUE_PATTERNS.some(pattern => pattern.test(name));
+}
 
 function dateInTZ(offsetDays = 0) {
   const now = new Date();
@@ -83,7 +89,7 @@ async function getTeamForm(teamId, usage) {
   if (!teamId) return null;
   const key = String(teamId);
   const cached = formCache.get(key);
-  if (cached && Date.now() - cached.at < 21_600_000) return cached.data;
+  if (cached && Date.now() - cached.at < FORM_CACHE_MS) return cached.data;
   if (usage.formsFetched >= FORM_TEAM_LIMIT) return null;
 
   usage.formsFetched += 1;
@@ -128,6 +134,10 @@ function normalizeMatch(match, forms) {
     form: {
       homeLast5: homeForm?.form || null,
       awayLast5: awayForm?.form || null,
+      homePoints: homeForm?.points ?? null,
+      awayPoints: awayForm?.points ?? null,
+      homePlayed: homeForm?.played ?? null,
+      awayPlayed: awayForm?.played ?? null,
       homeGF: homeForm?.goalsFor ?? null,
       homeGA: homeForm?.goalsAgainst ?? null,
       awayGF: awayForm?.goalsFor ?? null,
@@ -149,7 +159,8 @@ async function refreshBulletin() {
     return { date, matches: asArray(result.body) };
   }));
 
-  const rawMatches = dayResults.flatMap(x => x.matches);
+  const allRawMatches = dayResults.flatMap(x => x.matches);
+  const rawMatches = allRawMatches.filter(isMajorLeague);
   const seen = new Set();
   const upcoming = rawMatches.filter(match => {
     const id = String(match.id);
@@ -176,11 +187,16 @@ async function refreshBulletin() {
       updatedAt: new Date().toISOString(),
       fixtureDate: dates[0],
       fixtureWindow: { from: dates[0], to: dates[dates.length - 1] },
+      leagueFilter: "Türkiye Süper Lig + Avrupa'nın önde gelen ligleri ve UEFA kupaları",
       apiRequestsUsed: usage.requests,
       apiRequestsRemaining: usage.remaining,
-      fixturesReceived: rawMatches.length,
+      fixturesReceived: allRawMatches.length,
+      majorLeagueFixtures: rawMatches.length,
       matchesReceived: matches.length,
+      formTeamsRequested: teamIds.length,
       formsFetched: usage.formsFetched,
+      formTeamsWithStats: [...forms.values()].filter(Boolean).length,
+      formTeamLimit: FORM_TEAM_LIMIT,
       formErrors: usage.formErrors,
       oddsAvailable: false,
       oddsNotice: "Highlightly ücretsiz Basic planda bahis oranları sunulmuyor. Tahminler oran olmadan üretilir.",
