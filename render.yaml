@@ -5,9 +5,15 @@ services:
     buildCommand: npm install
     startCommand: npm start
     envVars:
-      - key: BULLETIN_API_URL
+      - key: API_FOOTBALL_KEY
         sync: false
-      - key: BULLETIN_API_KEY
-        sync: false
-      - key: BULLETIN_API_AUTH_HEADER
-        value: x-api-key
+      - key: API_FOOTBALL_TIMEZONE
+        value: Europe/Istanbul
+      - key: MAX_MATCHES
+        value: "15"
+      - key: FIXTURE_DAYS
+        value: "3"
+      - key: BULLETIN_CACHE_MS
+        value: "3600000"
+      - key: ALLOW_DEMO
+        value: "false"
