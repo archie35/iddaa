@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: iddaa-ai-predictor
+    runtime: node
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: BULLETIN_API_URL
+        sync: false
+      - key: BULLETIN_API_KEY
+        sync: false
+      - key: BULLETIN_API_AUTH_HEADER
+        value: x-api-key
