@@ -1,7 +1,7 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import { analyzeMatches, generateCoupons } from "./src/predictor.js";
+import { analyzeMatches } from "./src/predictor.js";
 import { fetchBulletin } from "./src/bulletin.js";
 
 dotenv.config();
@@ -25,21 +25,6 @@ app.post("/api/analyze", async (req, res) => {
     const bulletin = req.body.matches ? null : await fetchBulletin();
     const matches = req.body.matches || bulletin.matches;
     res.json(analyzeMatches(matches));
-  } catch (error) {
-    res.status(400).json({ error: error.message });
-  }
-});
-
-app.post("/api/coupons", async (req, res) => {
-  try {
-    const bulletin = req.body.matches ? null : await fetchBulletin();
-    const matches = req.body.matches || bulletin.matches;
-    const analysis = analyzeMatches(matches);
-    res.json(generateCoupons(analysis.matches, {
-      count: Number(req.body.count || 8),
-      targetOdds: Number(req.body.targetOdds || 0),
-      risk: req.body.risk || "medium"
-    }));
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
