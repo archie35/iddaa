@@ -1,25 +1,30 @@
 # IDDAA AI Predictor
 
-Gerçek zamanlı futbol bülteni + oran + istatistik destekli analiz uygulaması.
+API-Football verileriyle maç oranlarını analiz eden uygulama.
 
-## Veri kaynağı
+## Veri ve istek kotası
 
-Bu sürüm **API-Football** kullanır. API-Football'ın ücretsiz planı şu anda günlük 100 istek ve 10 istek/dakika sınırı veriyor; fixtures, H2H, statistics, predictions ve pre-match odds endpoint'leri mevcut. Oranlar API-Football'daki bookmaker kaynaklarından gelir; bunlar doğrudan iddaa.com oranı olmak zorunda değildir. citeturn148749search0turn346849search0
+Bu sürüm, maç başına ayrı ayrı `/odds` ve `/predictions` çağrıları yapmaz. Her yenilemede tek bir toplu istek kullanır:
 
-API-Football predictions endpoint'i form, önceki maçlar, oyuncular ve diğer istatistiksel girdileri kullanarak kendi tahminlerini üretir. Bu uygulama bu olasılıkları kendi modelinin çıktısıyla birleştirir. citeturn194507search1turn194507search4
+```
+GET /odds?date=YYYY-MM-DD&timezone=Europe/Istanbul&page=1
+```
 
-## Render ayarları
+API-Football odds endpoint'i tarih filtresi destekler ve sayfa başına 10 sonuç döndürür. Uygulama ilk sayfayı kullanır; bu nedenle bir yenilemede en fazla 10 oranlı maç listelenir. Veriler sunucu belleğinde varsayılan 1 saat saklanır. Aynı anda gelen istekler tek bir yenileme paylaşır.
 
-Render Environment Variables:
+**Önemli:** Bellek önbelleği Render servisi yeniden başladığında veya uyku modundan döndüğünde sıfırlanır. Dolayısıyla her normal çalışma süresinde saat başına en fazla 1 API isteği hedeflenir; yeniden başlatma/soğuk açılışta ek istek oluşabilir. Render'ın ücretsiz servisi uykuya geçtiğinde zamanlanmış arka plan yenilemesi yapamaz.
 
-- `API_FOOTBALL_KEY` = API-Football dashboard'dan aldığın anahtar
-- `API_FOOTBALL_TIMEZONE` = `Europe/Istanbul`
-- `MAX_MATCHES` = `15`
-- `FIXTURE_DAYS` = `3`
-- `BULLETIN_CACHE_MS` = `3600000`
-- `ALLOW_DEMO` = `false`
+Oranlar API-Football'ın sağladığı bookmaker verileridir; doğrudan iddaa.com oranı olduğu garanti edilmez. Ücretsiz API planı günlük istek kotasına tabidir. Güncel kota ve kapsam için API-Football dashboard'unu kontrol et.
 
-API anahtarını GitHub koduna yazma. Render Environment'a koy.
+## Render Environment Variables
+
+- `API_FOOTBALL_KEY`: API-Football dashboard'dan alınan anahtar
+- `API_FOOTBALL_TIMEZONE`: `Europe/Istanbul`
+- `MAX_MATCHES`: `10` (tek API sayfasının sınırı)
+- `BULLETIN_CACHE_MS`: `3600000` (1 saat)
+- `ALLOW_DEMO`: `false`
+
+API anahtarını GitHub'a ekleme; yalnızca Render Environment bölümüne koy.
 
 ## Çalıştırma
 
@@ -28,16 +33,8 @@ npm install
 npm start
 ```
 
-API anahtarı yoksa gerçek veri modu çalışmaz; sahte maç üretmez.
+API anahtarı yoksa gerçek veri modu hata verir; sahte maç üretmez.
 
-## Model
+## Tahmin modeli
 
-Sistem:
-1. Gerçek yaklaşan fixtures'ları çeker.
-2. Pre-match bookmaker oranlarını çeker.
-3. API-Football'ın form/geçmiş verilerini kullanan prediction çıktısını alır.
-4. Bu çıktıyı yerel model ile birleştirir.
-5. İma edilen olasılık, model olasılığı ve value farkını hesaplar.
-6. Düşük/dengeli/yüksek risk kuponları oluşturur.
-
-> Not: Bu sistem bahis sonucunu garanti etmez. Tahminler istatistiksel model çıktılarıdır.
+API-Football toplu oranlarından gelen maç ve bookmaker oranları, yerel olasılık hesaplamasına girer. Bu uygulama eğitilmiş/bağımsız doğrulanmış bir makine öğrenmesi modeli değildir. Tahminler garanti vermez; bahis kayıp riski taşır.
