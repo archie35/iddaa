@@ -121,12 +121,24 @@ async function refreshBulletin() {
     ...remainingPages.flatMap(page => page.response || [])
   ];
 
-  const matches = oddsItems
-    .map(item => {
-      const fixture = fixtureMap.get(String(item.fixture?.id));
-      return fixture ? mapOdds(item, fixture) : null;
+  // Fikstür ana listedir; oranı olmayan maçları da göster.
+  const oddsByFixture = new Map(oddsItems.map(item => [String(item.fixture?.id), item]));
+  const matches = (fixturesBody.response || [])
+    .filter(f => ["NS", "TBD"].includes(f.fixture?.status?.short))
+    .map(f => {
+      const oddsItem = oddsByFixture.get(String(f.fixture?.id));
+      if (oddsItem) return mapOdds(oddsItem, f);
+      return {
+        id: String(f.fixture.id), fixtureId: f.fixture.id,
+        home: f.teams?.home?.name || "Takım bilgisi yok",
+        away: f.teams?.away?.name || "Takım bilgisi yok",
+        homeTeamId: f.teams?.home?.id, awayTeamId: f.teams?.away?.id,
+        league: f.league?.name || "Bilinmeyen Lig", country: f.league?.country || "",
+        kickoff: f.fixture.date, status: f.fixture.status?.short || "NS",
+        odds: {}, bookmaker: null, providerPrediction: null,
+        source: "api-football", oddsAvailable: false
+      };
     })
-    .filter(Boolean)
     .filter(m => m.home !== "Takım bilgisi yok" && m.away !== "Takım bilgisi yok")
     .sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff));
 
@@ -141,6 +153,9 @@ async function refreshBulletin() {
       oddsPagesFetched: totalPages,
       oddsPagesAvailable: Number(firstOddsPage.paging?.total || 1),
       oddsPageLimitReached: Number(firstOddsPage.paging?.total || 1) > MAX_ODDS_PAGES,
+      fixturesReceived: (fixturesBody.response || []).length,
+      oddsReceived: oddsItems.length,
+      matchedOdds: oddsByFixture.size,
       matches
     }
   };
