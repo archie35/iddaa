@@ -1,2 +1,172 @@
-const demo=[{id:"D1",home:"Galatasaray",away:"Trabzonspor",league:"Süper Lig",kickoff:"2026-11-21T19:00:00+03:00",odds:{home:1.48,draw:4.6,away:6.2,over25:1.62,under25:2.2,bttsYes:1.65,bttsNo:2.05},form:{homeLast5:"WWDWW",awayLast5:"WDLWL",homeGF:2.2,homeGA:.8,awayGF:1.2,awayGA:1.6}},{id:"D2",home:"Fenerbahçe",away:"Kasımpaşa",league:"Süper Lig",kickoff:"2026-11-22T16:00:00+03:00",odds:{home:1.55,draw:4.3,away:5.5,over25:1.58,under25:2.25,bttsYes:1.72,bttsNo:1.95},form:{homeLast5:"WWWWW",awayLast5:"LDLWD",homeGF:2,homeGA:.7,awayGF:1.1,awayGA:1.7}},{id:"D3",home:"Beşiktaş",away:"Başakşehir",league:"Süper Lig",kickoff:"2026-11-22T20:00:00+03:00",odds:{home:2.05,draw:3.5,away:3.3,over25:1.9,under25:1.85,bttsYes:1.78,bttsNo:1.92},form:{homeLast5:"WDWDL",awayLast5:"DWWLD",homeGF:1.5,homeGA:1.1,awayGF:1.4,awayGA:1.2}}];
-export async function fetchBulletin(){const url=process.env.BULLETIN_API_URL;if(!url)return demo;const h={};if(process.env.BULLETIN_API_KEY)h[process.env.BULLETIN_API_AUTH_HEADER||"x-api-key"]=process.env.BULLETIN_API_KEY;const r=await fetch(url,{headers:h});if(!r.ok)throw Error("API HTTP "+r.status);const d=await r.json();return Array.isArray(d)?d:(d.matches||d.events||d.data||[]);}
+const API_BASE = process.env.API_FOOTBALL_BASE_URL || "https://v3.football.api-sports.io";
+const TZ = process.env.API_FOOTBALL_TIMEZONE || "Europe/Istanbul";
+const MAX_MATCHES = Math.max(1, Number(process.env.MAX_MATCHES || 15));
+const DAYS_AHEAD = Math.max(0, Number(process.env.FIXTURE_DAYS || 3));
+const CACHE_MS = Math.max(60_000, Number(process.env.BULLETIN_CACHE_MS || 3_600_000));
+
+let cache = { at: 0, data: null };
+
+function dateInTZ(offsetDays = 0) {
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(now);
+  const base = `${parts.find(p => p.type === "year").value}-${parts.find(p => p.type === "month").value}-${parts.find(p => p.type === "day").value}T12:00:00`;
+  const d = new Date(base);
+  d.setDate(d.getDate() + offsetDays);
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit"
+  }).format(d);
+}
+
+async function api(path, params = {}) {
+  if (!process.env.API_FOOTBALL_KEY) {
+    throw new Error("API_FOOTBALL_KEY tanımlı değil. Render Environment'a gerçek API anahtarını ekleyin.");
+  }
+
+  const qs = new URLSearchParams(params);
+  const url = `${API_BASE}${path}?${qs}`;
+  const r = await fetch(url, {
+    headers: { "x-apisports-key": process.env.API_FOOTBALL_KEY }
+  });
+
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok || (Array.isArray(d.errors) && d.errors.length)) {
+    throw new Error(`API-Football HTTP ${r.status}: ${JSON.stringify(d.errors || d.message || "Bilinmeyen hata")}`);
+  }
+  return d.response || [];
+}
+
+function parseOdd(value) {
+  const n = Number(String(value ?? "").replace(",", "."));
+  return Number.isFinite(n) && n > 1 ? n : null;
+}
+
+function findBet(bookmaker, matcher) {
+  const bet = (bookmaker?.bets || []).find(b => matcher(String(b.name || "").toLowerCase()));
+  return bet?.values || [];
+}
+
+function valueOdd(values, names) {
+  const v = values.find(x => names.includes(String(x.value || "").toLowerCase()));
+  return parseOdd(v?.odd);
+}
+
+function mapOdds(oddsResponse) {
+  const bookmaker = process.env.API_FOOTBALL_BOOKMAKER_ID
+    ? oddsResponse.flatMap(x => x.bookmakers || []).find(b => String(b.id) === String(process.env.API_FOOTBALL_BOOKMAKER_ID))
+    : oddsResponse.flatMap(x => x.bookmakers || [])[0];
+
+  if (!bookmaker) return { odds: {}, bookmaker: null };
+
+  const winner = findBet(bookmaker, n => n.includes("match winner") || n === "1x2");
+  const total = findBet(bookmaker, n => n.includes("over/under") || n.includes("goals over/under"));
+  const btts = findBet(bookmaker, n => n.includes("both teams score") || n.includes("btts"));
+
+  return {
+    bookmaker: bookmaker.name || String(bookmaker.id),
+    odds: {
+      home: valueOdd(winner, ["home", "1"]),
+      draw: valueOdd(winner, ["draw", "x"]),
+      away: valueOdd(winner, ["away", "2"]),
+      over25: valueOdd(total, ["over 2.5", "over2.5"]),
+      under25: valueOdd(total, ["under 2.5", "under2.5"]),
+      bttsYes: valueOdd(btts, ["yes"]),
+      bttsNo: valueOdd(btts, ["no"])
+    }
+  };
+}
+
+function extractPrediction(pred) {
+  const p = pred?.[0]?.predictions;
+  const percent = p?.percent || {};
+  const toNum = v => {
+    const n = Number(String(v ?? "").replace("%", "").replace(",", "."));
+    return Number.isFinite(n) ? n / 100 : null;
+  };
+
+  return {
+    advice: p?.advice || null,
+    winner: p?.winner?.name || null,
+    underOver: p?.under_over || null,
+    goalsHome: p?.goals?.home ?? null,
+    goalsAway: p?.goals?.away ?? null,
+    home: toNum(percent.home),
+    draw: toNum(percent.draw),
+    away: toNum(percent.away),
+    comparison: p?.comparison || null
+  };
+}
+
+export async function fetchBulletin() {
+  if (cache.data && Date.now() - cache.at < CACHE_MS) return cache.data;
+
+  if (!process.env.API_FOOTBALL_KEY) {
+    if (process.env.ALLOW_DEMO === "true") {
+      return {
+        source: "demo",
+        provider: "demo",
+        matches: []
+      };
+    }
+    throw new Error("Gerçek veri için API_FOOTBALL_KEY gerekli.");
+  }
+
+  const from = dateInTZ(0);
+  const to = dateInTZ(DAYS_AHEAD);
+  let fixtures = await api("/fixtures", {
+    from,
+    to,
+    timezone: TZ,
+    status: "NS"
+  });
+
+  fixtures = fixtures
+    .filter(x => x.fixture?.status?.short === "NS" && x.teams?.home?.name && x.teams?.away?.name)
+    .sort((a, b) => new Date(a.fixture.date) - new Date(b.fixture.date))
+    .slice(0, MAX_MATCHES);
+
+  const matches = [];
+  for (const f of fixtures) {
+    const [oddsRaw, predRaw] = await Promise.all([
+      api("/odds", { fixture: f.fixture.id, page: 1 }),
+      api("/predictions", { fixture: f.fixture.id })
+    ]);
+
+    const parsed = mapOdds(oddsRaw);
+    const prediction = extractPrediction(predRaw);
+
+    matches.push({
+      id: String(f.fixture.id),
+      fixtureId: f.fixture.id,
+      home: f.teams.home.name,
+      away: f.teams.away.name,
+      homeTeamId: f.teams.home.id,
+      awayTeamId: f.teams.away.id,
+      league: f.league?.name || "Bilinmeyen Lig",
+      country: f.league?.country || "",
+      kickoff: f.fixture.date,
+      status: f.fixture.status?.short || "NS",
+      odds: parsed.odds,
+      bookmaker: parsed.bookmaker,
+      providerPrediction: prediction,
+      source: "api-football"
+    });
+  }
+
+  cache = {
+    at: Date.now(),
+    data: {
+      source: "api-football",
+      provider: "API-Football",
+      updatedAt: new Date().toISOString(),
+      fixtureWindow: { from, to },
+      matches
+    }
+  };
+
+  return cache.data;
+}
