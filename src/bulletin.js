@@ -23,8 +23,16 @@ async function api(path, params = {}) {
     headers: { "x-apisports-key": process.env.API_FOOTBALL_KEY }
   });
   const body = await response.json().catch(() => ({}));
-  if (!response.ok || (Array.isArray(body.errors) && body.errors.length)) {
-    throw new Error(`API-Football HTTP ${response.status}: ${JSON.stringify(body.errors || body.message || "Bilinmeyen hata")}`);
+  const hasErrors = body.errors && (
+    Array.isArray(body.errors) ? body.errors.length > 0 :
+    typeof body.errors === "object" ? Object.keys(body.errors).length > 0 :
+    Boolean(body.errors)
+  );
+  if (!response.ok || hasErrors) {
+    throw new Error(`API-Football HTTP ${response.status}: ${JSON.stringify(body.errors || body.message || body)}`);
+  }
+  if (!Array.isArray(body.response)) {
+    throw new Error(`API-Football beklenmeyen yanıt verdi: ${JSON.stringify({ results: body.results, errors: body.errors, message: body.message })}`);
   }
   return body;
 }
@@ -154,7 +162,12 @@ async function refreshBulletin() {
       oddsPagesAvailable: Number(firstOddsPage.paging?.total || 1),
       oddsPageLimitReached: Number(firstOddsPage.paging?.total || 1) > MAX_ODDS_PAGES,
       fixturesReceived: (fixturesBody.response || []).length,
+      fixturesApiResults: fixturesBody.results ?? null,
+      fixturesApiErrors: fixturesBody.errors ?? null,
+      fixturesPaging: fixturesBody.paging ?? null,
       oddsReceived: oddsItems.length,
+      oddsApiResults: firstOddsPage.results ?? null,
+      oddsApiErrors: firstOddsPage.errors ?? null,
       matchedOdds: oddsByFixture.size,
       matches
     }
