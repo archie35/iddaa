@@ -12,13 +12,14 @@
     <p>Gerçek fikstür, takım formu ve olasılık tabanlı maç analizi</p>
     <section class="controls">
       <label>Hangi analizi yapayım?
-        <select id="marketType">
+        <select id="marketType" required>
+          <option value="" selected disabled>Önce analiz türünü seç</option>
           <option value="side">Taraf bahsi (1 / X / 2)</option>
           <option value="goals">Alt / Üst 2.5 gol</option>
           <option value="btts">KG Var / KG Yok</option>
         </select>
       </label>
-      <button id="load">Maçları Analiz Et</button>
+      <button id="load" disabled>Maçları Analiz Et</button>
     </section>
     <div id="status"></div>
     <section id="matches" class="grid"></section>
