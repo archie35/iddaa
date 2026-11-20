@@ -6,7 +6,7 @@ const FORM_TEAM_LIMIT = Math.max(0, Math.min(40, Number(process.env.HIGHLIGHTLY_
 let cache = { at: 0, data: null };
 let refreshPromise = null;
 const formCache = new Map();
-const FORM_CACHE_MS = 86_400_000;
+const FORM_CACHE_MS = 172_800_000;
 const MAJOR_LEAGUE_PATTERNS = [/premier league/i, /la liga|laliga/i, /bundesliga/i, /serie a/i, /ligue 1/i, /eredivisie/i, /primeira liga|liga portugal/i, /super lig|süper lig|turkish super/i, /jupiler pro league|first division a/i, /scottish premiership/i, /champions league/i, /europa league/i, /conference league/i];
 function isMajorLeague(match) {
   const name = String(match.league?.name || "").trim();
