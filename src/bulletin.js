@@ -1,7 +1,6 @@
 const API_BASE = process.env.API_FOOTBALL_BASE_URL || "https://v3.football.api-sports.io";
 const TZ = process.env.API_FOOTBALL_TIMEZONE || "Europe/Istanbul";
 const MAX_ODDS_PAGES = Math.max(1, Math.min(9, Number(process.env.MAX_ODDS_PAGES || 9)));
-const MAX_MATCHES = MAX_ODDS_PAGES * 10;
 const CACHE_MS = Math.max(60_000, Number(process.env.BULLETIN_CACHE_MS || 10_800_000));
 
 let cache = { at: 0, data: null };
@@ -20,7 +19,8 @@ async function api(path, params = {}) {
   }
   const qs = new URLSearchParams(params);
   const response = await fetch(`${API_BASE}${path}?${qs}`, {
-    headers: { "x-apisports-key": process.env.API_FOOTBALL_KEY }
+    headers: { "x-apisports-key": process.env.API_FOOTBALL_KEY },
+    signal: AbortSignal.timeout(15_000)
   });
   const body = await response.json().catch(() => ({}));
   const hasErrors = body.errors && (
@@ -180,6 +180,7 @@ export async function fetchBulletin() {
   if (refreshPromise) return refreshPromise;
 
   if (!process.env.API_FOOTBALL_KEY) {
+    if (cache.data) return { ...cache.data, stale: true, staleReason: "API anahtarı bulunamadı; son başarılı fikstür gösteriliyor." };
     if (process.env.ALLOW_DEMO === "true") {
       return { source: "demo", provider: "demo", updatedAt: null, apiRequestsUsed: 0, matches: [] };
     }
@@ -189,6 +190,16 @@ export async function fetchBulletin() {
   refreshPromise = refreshBulletin();
   try {
     return await refreshPromise;
+  } catch (error) {
+    if (cache.data) {
+      return {
+        ...cache.data,
+        stale: true,
+        staleReason: error.message,
+        servedAt: new Date().toISOString()
+      };
+    }
+    throw error;
   } finally {
     refreshPromise = null;
   }
