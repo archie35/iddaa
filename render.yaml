@@ -9,9 +9,9 @@ services:
         sync: false
       - key: API_FOOTBALL_TIMEZONE
         value: Europe/Istanbul
-      - key: MAX_MATCHES
-        value: "10"
+      - key: MAX_ODDS_PAGES
+        value: "9"
       - key: BULLETIN_CACHE_MS
-        value: "3600000"
+        value: "10800000"
       - key: ALLOW_DEMO
         value: "false"
