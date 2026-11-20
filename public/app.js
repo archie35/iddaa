@@ -79,7 +79,7 @@ async function coupon() {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        matches,
+        matches: compactMatchesForCoupons(matches),
         count: Number($("#count").value),
         targetOdds: Number($("#target").value || 0),
         risk: $("#risk").value
