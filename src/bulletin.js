@@ -113,21 +113,36 @@ async function refreshBulletin() {
     (fixturesBody.response || []).map(f => [String(f.fixture?.id), f])
   );
 
-  const firstOddsPage = await api("/odds", { date, timezone: TZ, page: 1 });
-  const totalPages = Math.min(
-    Number(firstOddsPage.paging?.total || 1),
-    MAX_ODDS_PAGES
-  );
+  // Oran servisi başarısız olsa bile fikstür listesini kaybetme.
+  let firstOddsPage = { response: [], paging: { total: 0 }, results: 0, errors: null };
+  let oddsItems = [];
+  let oddsPagesFetched = 0;
+  let oddsPagesAvailable = 0;
+  let oddsError = null;
 
-  const remainingPages = await Promise.all(
-    Array.from({ length: Math.max(0, totalPages - 1) }, (_, i) =>
-      api("/odds", { date, timezone: TZ, page: i + 2 })
-    )
-  );
-  const oddsItems = [
-    ...(firstOddsPage.response || []),
-    ...remainingPages.flatMap(page => page.response || [])
-  ];
+  try {
+    firstOddsPage = await api("/odds", { date, timezone: TZ, page: 1 });
+    oddsPagesFetched = 1;
+    oddsPagesAvailable = Number(firstOddsPage.paging?.total || 1);
+    oddsItems = [...(firstOddsPage.response || [])];
+
+    const totalPages = Math.min(oddsPagesAvailable, MAX_ODDS_PAGES);
+    const remaining = await Promise.allSettled(
+      Array.from({ length: Math.max(0, totalPages - 1) }, (_, i) =>
+        api("/odds", { date, timezone: TZ, page: i + 2 })
+      )
+    );
+    for (const result of remaining) {
+      if (result.status === "fulfilled") {
+        oddsPagesFetched += 1;
+        oddsItems.push(...(result.value.response || []));
+      } else {
+        oddsError = result.reason?.message || "Ek oran sayfası alınamadı.";
+      }
+    }
+  } catch (error) {
+    oddsError = error.message;
+  }
 
   // Fikstür ana listedir; oranı olmayan maçları da göster.
   const oddsByFixture = new Map(oddsItems.map(item => [String(item.fixture?.id), item]));
@@ -157,10 +172,11 @@ async function refreshBulletin() {
       provider: "API-Football",
       updatedAt: new Date().toISOString(),
       fixtureDate: date,
-      apiRequestsUsed: 1 + totalPages,
-      oddsPagesFetched: totalPages,
-      oddsPagesAvailable: Number(firstOddsPage.paging?.total || 1),
-      oddsPageLimitReached: Number(firstOddsPage.paging?.total || 1) > MAX_ODDS_PAGES,
+      apiRequestsUsed: 1 + oddsPagesFetched,
+      oddsPagesFetched,
+      oddsPagesAvailable,
+      oddsPageLimitReached: oddsPagesAvailable > MAX_ODDS_PAGES,
+      oddsError,
       fixturesReceived: (fixturesBody.response || []).length,
       fixturesApiResults: fixturesBody.results ?? null,
       fixturesApiErrors: fixturesBody.errors ?? null,
