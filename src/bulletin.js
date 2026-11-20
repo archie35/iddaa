@@ -1,13 +1,13 @@
 const API_BASE = process.env.HIGHLIGHTLY_BASE_URL || "https://soccer.highlightly.net";
 const TZ = process.env.HIGHLIGHTLY_TIMEZONE || "Europe/Istanbul";
-const CACHE_MS = Math.max(60_000, Number(process.env.BULLETIN_CACHE_MS || 28_800_000));
+const CACHE_MS = Math.max(60_000, Number(process.env.BULLETIN_CACHE_MS || 43_200_000));
 const FORM_TEAM_LIMIT = Math.max(0, Math.min(40, Number(process.env.HIGHLIGHTLY_MAX_FORM_TEAMS || 40)));
 
 let cache = { at: 0, data: null };
 let refreshPromise = null;
 const formCache = new Map();
 const FORM_CACHE_MS = 86_400_000;
-const MAJOR_LEAGUE_PATTERNS = [/premier league/i, /la liga|laliga/i, /bundesliga/i, /serie a/i, /ligue 1/i, /eredivisie/i, /primeira liga|liga portugal/i, /super lig|süper lig|turkish super/i, /pro league/i, /scottish premiership/i, /champions league/i, /europa league/i, /conference league/i];
+const MAJOR_LEAGUE_PATTERNS = [/premier league/i, /la liga|laliga/i, /bundesliga/i, /serie a/i, /ligue 1/i, /eredivisie/i, /primeira liga|liga portugal/i, /super lig|süper lig|turkish super/i, /jupiler pro league|first division a/i, /scottish premiership/i, /champions league/i, /europa league/i, /conference league/i];
 function isMajorLeague(match) {
   const name = String(match.league?.name || "").trim();
   return MAJOR_LEAGUE_PATTERNS.some(pattern => pattern.test(name));
