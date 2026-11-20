@@ -42,8 +42,9 @@ async function load() {
     });
     render(analysis);
     const staleNote = bulletin.stale ? " · Son başarılı veri gösteriliyor (API yenilenemedi)" : "";
+    const oddsNote = bulletin.oddsNotice ? ` · ${bulletin.oddsNotice}` : "";
     $("#status").textContent =
-      `${analysis.matches.length} maç analiz edildi · kaynak: ${bulletin.provider || bulletin.source} · güncelleme: ${bulletin.updatedAt ? new Date(bulletin.updatedAt).toLocaleTimeString("tr-TR") : "şimdi"}${staleNote}`;
+      `${analysis.matches.length} maç analiz edildi · kaynak: ${bulletin.provider || bulletin.source} · güncelleme: ${bulletin.updatedAt ? new Date(bulletin.updatedAt).toLocaleTimeString("tr-TR") : "şimdi"}${staleNote}${oddsNote}`;
   } catch (error) {
     $("#status").textContent = error.message;
   }
