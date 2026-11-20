@@ -16,9 +16,11 @@ Maçlar seçilen pazardaki model güvenine göre yüksekten düşüğe sıralan�
 - Sağlayıcı: Highlightly Football API
 - Ana adres: `https://soccer.highlightly.net`
 - Fikstür aralığı: Bugün ve takip eden 6 gün.
-- Takım formu: `/last-five-games?teamId=...` endpoint'iyle son 5 tamamlanmış maç.
-- Önbellek: Varsayılan 8 saat; takım formu ayrıca 6 saat saklanır.
-- Ücretsiz Basic kota: Günlük 100 istek. Bir yenilemede 7 fikstür isteği ve en fazla 20 takım formu isteği yapılır.
+- Lig filtresi: Türkiye Süper Lig, İngiltere Premier League, İspanya La Liga, Almanya Bundesliga, İtalya Serie A, Fransa Ligue 1, Hollanda Eredivisie, Portekiz Primeira Liga, Belçika Pro League, İskoçya Premiership ve UEFA'nın üç ana kulüp turnuvası.
+- Takım formu: `/last-five-games?teamId=...` endpoint'iyle son 5 tamamlanmış maç; W/D/L dizisi ve gol atma/yeme ortalamaları.
+- Önbellek: Fikstür 12 saat, takım formu 24 saat.
+- Form kapsamı: Yenilemede en fazla 40 takımın (20 maçın iki tarafı) son 5 maç verisi çekilir. Daha fazla maç varsa tüm takımlar aynı yenilemede kapsanmayabilir.
+- API çağrısı: Yenileme başına 7 fikstür + en fazla 40 form isteği. Günde iki yenilemede yaklaşık 94 istek; gerçek kota sağlayıcı paneline bağlıdır.
 
 ## Oranlar
 
@@ -29,8 +31,8 @@ Highlightly ücretsiz planda bahis oranları sunulmadığından oran alanları b
 - `HIGHLIGHTLY_API_KEY`: Highlightly Dashboard API anahtarı
 - `HIGHLIGHTLY_BASE_URL`: `https://soccer.highlightly.net`
 - `HIGHLIGHTLY_TIMEZONE`: `Europe/Istanbul`
-- `HIGHLIGHTLY_MAX_FORM_TEAMS`: Yenilemede formu alınacak azami takım sayısı (varsayılan 20)
-- `BULLETIN_CACHE_MS`: Önbellek süresi (varsayılan 8 saat)
+- `HIGHLIGHTLY_MAX_FORM_TEAMS`: Yenilemede formu alınacak azami takım sayısı (varsayılan 40)
+- `BULLETIN_CACHE_MS`: Önbellek süresi (varsayılan 12 saat)
 - `ALLOW_DEMO`: `false`
 
 API anahtarını GitHub'a veya frontend koduna koyma. Yalnızca Render Environment bölümünde sakla.
