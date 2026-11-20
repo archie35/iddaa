@@ -31,15 +31,37 @@ function render(data) {
   }).join("");
 }
 
+async function analyzeInChunks(allMatches, chunkSize = 15) {
+  const analyzed = [];
+  const totalChunks = Math.ceil(allMatches.length / chunkSize);
+  for (let index = 0; index < allMatches.length; index += chunkSize) {
+    const chunk = allMatches.slice(index, index + chunkSize);
+    $("#status").textContent = `Maçlar analiz ediliyor... ${Math.min(index + chunk.length, allMatches.length)}/${allMatches.length} (${Math.floor(index / chunkSize) + 1}/${totalChunks})`;
+    const result = await j("/api/analyze", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ matches: chunk })
+    });
+    analyzed.push(...(result.matches || []));
+  }
+  return { generatedAt: new Date().toISOString(), matches: analyzed };
+}
+
+function compactMatchesForCoupons(items) {
+  return items.map(match => ({
+    id: match.id,
+    home: match.home,
+    away: match.away,
+    prediction: match.prediction,
+    alternatives: match.alternatives
+  }));
+}
+
 async function load() {
   $("#status").textContent = "Gerçek maç verileri yükleniyor...";
   try {
     const bulletin = await j("/api/bulletin");
-    const analysis = await j("/api/analyze", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ matches: bulletin.matches })
-    });
+    const analysis = await analyzeInChunks(bulletin.matches || []);
     render(analysis);
     const staleNote = bulletin.stale ? " · Son başarılı veri gösteriliyor (API yenilenemedi)" : "";
     const oddsNote = bulletin.oddsNotice ? ` · ${bulletin.oddsNotice}` : "";
