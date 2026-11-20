@@ -126,6 +126,7 @@ export function analyzeMatches(ms = []) {
           key: best.key,
           label: best.label,
           odds: best.odds,
+          p: best.p,
           implied: best.implied,
           model: best.model,
           value: best.value,
