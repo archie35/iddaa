@@ -143,7 +143,7 @@ export function analyzeMatches(ms) {
         )),
         modelSource: ph != null ? "API-Football + yerel model" : "yerel model"
       };
-    }).filter(m => m.prediction)
+    })
   };
 }
 
