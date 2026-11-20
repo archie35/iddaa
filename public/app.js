@@ -8,29 +8,6 @@ async function j(url, options) {
   return data;
 }
 
-function render(data) {
-  matches = data.matches || [];
-  $("#matches").innerHTML = matches.map(match => {
-    const prediction = match.prediction;
-    const oddsText = prediction?.oddsAvailable
-      ? `<span class="pill">Oran ${prediction.odds}</span><span class="pill">Değer ${prediction.value > 0 ? "+" : ""}${prediction.value}</span>`
-      : '<span class="pill">Oran yok</span>';
-    const predictionText = prediction
-      ? `<span class="pill">${prediction.label}</span>${oddsText}<span class="pill">Model %${prediction.model}</span><div class="value">Tahmin güveni: %${match.confidence}</div>`
-      : '<div class="muted">Tahmin üretmek için yeterli veri yok.</div>';
-    const probabilities = match.probabilities
-      ? `<div class="muted">MS olasılıkları: 1 %${match.probabilities.home} · X %${match.probabilities.draw} · 2 %${match.probabilities.away}</div>`
-      : "";
-    return `<article class="card">
-      <div class="muted">${match.league} · ${new Date(match.kickoff).toLocaleString("tr-TR")}</div>
-      <b>${match.home} — ${match.away}</b>
-      <div class="pick">${predictionText}${probabilities}
-        <div class="muted">Veri: ${match.modelSource || "yerel model"} · Oran kaynağı: ${match.bookmaker || "yok"}</div>
-      </div>
-    </article>`;
-  }).join("");
-}
-
 async function analyzeInChunks(allMatches, chunkSize = 15) {
   const analyzed = [];
   const totalChunks = Math.ceil(allMatches.length / chunkSize);
@@ -44,62 +21,57 @@ async function analyzeInChunks(allMatches, chunkSize = 15) {
     });
     analyzed.push(...(result.matches || []));
   }
-  return { generatedAt: new Date().toISOString(), matches: analyzed };
+  return analyzed;
 }
 
-function compactMatchesForCoupons(items) {
-  return items.map(match => ({
-    id: match.id,
-    home: match.home,
-    away: match.away,
-    prediction: match.prediction,
-    alternatives: match.alternatives
-  }));
+function render(items) {
+  const selectedGroup = $("#marketType").value;
+  const cards = items.map(match => {
+    const options = (match.marketPredictions || []).filter(x => x.group === selectedGroup);
+    if (!options.length) return { match, pick: null };
+    const pick = options.sort((a, b) => b.confidence - a.confidence || b.p - a.p)[0];
+    return { match, pick };
+  }).sort((a, b) => (b.pick?.confidence ?? -1) - (a.pick?.confidence ?? -1));
+
+  $("#matches").innerHTML = cards.map(({ match, pick }, index) => {
+    const date = match.kickoff ? new Date(match.kickoff).toLocaleString("tr-TR") : "Saat bilgisi yok";
+    const rank = pick ? `<span class="rank">#${index + 1}</span>` : "";
+    const pickHtml = pick
+      ? `<div class="pick">
+          <span class="pill">${pick.label}</span>
+          <span class="pill">Model olasılığı %${pick.model}</span>
+          <div class="value">Model güveni: %${pick.confidence}</div>
+          ${pick.oddsAvailable ? `<div class="muted">Oran: ${pick.odds}</div>` : '<div class="muted">Oran verisi bulunmuyor</div>'}
+        </div>`
+      : '<div class="pick muted">Bu analiz türü için yeterli takım gol verisi bulunamadı. Son 5 maç verisi gerektiğinden tahmin uydurulmadı.</div>';
+    const dataQuality = match.dataQuality === "team_stats" || match.dataQuality === "provider"
+      ? "Takım verisi mevcut"
+      : "Sınırlı veri";
+    return `<article class="card">
+      <div class="cardhead">${rank}<span class="muted">${match.league} · ${date}</span></div>
+      <b>${match.home} — ${match.away}</b>
+      ${pickHtml}
+      <div class="muted">Veri kalitesi: ${dataQuality} · ${match.modelSource || "Yerel model"}</div>
+    </article>`;
+  }).join("");
 }
 
 async function load() {
   $("#status").textContent = "Gerçek maç verileri yükleniyor...";
+  $("#matches").innerHTML = "";
   try {
     const bulletin = await j("/api/bulletin");
-    const analysis = await analyzeInChunks(bulletin.matches || []);
-    render(analysis);
+    matches = await analyzeInChunks(bulletin.matches || []);
+    render(matches);
     const staleNote = bulletin.stale ? " · Son başarılı veri gösteriliyor (API yenilenemedi)" : "";
     const oddsNote = bulletin.oddsNotice ? ` · ${bulletin.oddsNotice}` : "";
     $("#status").textContent =
-      `${analysis.matches.length} maç analiz edildi · kaynak: ${bulletin.provider || bulletin.source} · güncelleme: ${bulletin.updatedAt ? new Date(bulletin.updatedAt).toLocaleTimeString("tr-TR") : "şimdi"}${staleNote}${oddsNote}`;
+      `${matches.length} maç analiz edildi · ${bulletin.provider || bulletin.source} · Güven sırasına göre listelendi${staleNote}${oddsNote}`;
   } catch (error) {
     $("#status").textContent = error.message;
   }
 }
 
-async function coupon() {
-  if (!matches.length) await load();
-  try {
-    const data = await j("/api/coupons", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        matches: compactMatchesForCoupons(matches),
-        count: Number($("#count").value),
-        targetOdds: Number($("#target").value || 0),
-        risk: $("#risk").value
-      })
-    });
-    $("#coupons").innerHTML = data.coupons.length
-      ? data.coupons.map(coupon => `<div class="coupon">
-          <h3>${coupon.name}</h3>
-          <div>Toplam oran: <b>${coupon.totalOdds}</b>${coupon.targetOdds ? ` · Hedef: ${coupon.targetOdds}` : ""}</div>
-          ${coupon.picks.map(pick => `<div class="row">
-            <span>${pick.match}<br><span class="muted">${pick.market} · Model %${pick.modelProbability}</span></span>
-            <span class="odds">${pick.odds}</span>
-          </div>`).join("")}
-        </div>`).join("")
-      : `<div class="muted">${data.message || "Kupon oluşturulamadı."}</div>`;
-  } catch (error) {
-    $("#status").textContent = error.message;
-  }
-}
-
-$("#load").onclick = load;
-$("#coupon").onclick = coupon;
+$("#load").addEventListener("click", load);
+$("#marketType").addEventListener("change", () => render(matches));
 load();
