@@ -1,0 +1,12 @@
+import express from "express";
+import cors from "cors";
+import dotenv from "dotenv";
+import { analyzeMatches, generateCoupons } from "./src/predictor.js";
+import { fetchBulletin } from "./src/bulletin.js";
+dotenv.config();
+const app=express(); app.use(cors()); app.use(express.json()); app.use(express.static("public"));
+app.get("/api/health",(_,res)=>res.json({ok:true}));
+app.get("/api/bulletin",async(_,res)=>{try{const matches=await fetchBulletin();res.json({source:process.env.BULLETIN_API_URL?"api":"demo",matches});}catch(e){res.status(502).json({error:e.message});}});
+app.post("/api/analyze",async(req,res)=>{try{const matches=req.body.matches||await fetchBulletin();res.json(analyzeMatches(matches));}catch(e){res.status(400).json({error:e.message});}});
+app.post("/api/coupons",async(req,res)=>{try{const matches=req.body.matches||await fetchBulletin();const a=analyzeMatches(matches);res.json(generateCoupons(a.matches,{count:Number(req.body.count||8),targetOdds:Number(req.body.targetOdds||0),risk:req.body.risk||"medium"}));}catch(e){res.status(400).json({error:e.message});}});
+app.listen(Number(process.env.PORT||3000),()=>console.log("IDDAA AI running"));
