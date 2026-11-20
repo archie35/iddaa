@@ -87,24 +87,41 @@ export function analyzeMatches(ms = []) {
       }
 
       const markets = [
-        { key: "1", label: "MS 1", p: homeP, odds: Number(o.home) > 1 ? Number(o.home) : null },
-        { key: "X", label: "MS X", p: drawP, odds: Number(o.draw) > 1 ? Number(o.draw) : null },
-        { key: "2", label: "MS 2", p: awayP, odds: Number(o.away) > 1 ? Number(o.away) : null }
-      ].map(x => ({
-        ...x,
-        model: pct(x.p),
-        implied: x.odds ? pct(1 / x.odds) : null,
-        value: x.odds ? pct(x.p - 1 / x.odds) : null
-      }));
+        { key: "1", group: "side", label: "MS 1", p: homeP, odds: Number(o.home) > 1 ? Number(o.home) : null },
+        { key: "X", group: "side", label: "MS X", p: drawP, odds: Number(o.draw) > 1 ? Number(o.draw) : null },
+        { key: "2", group: "side", label: "MS 2", p: awayP, odds: Number(o.away) > 1 ? Number(o.away) : null }
+      ];
 
-      // Ek pazarlar yalnızca ilgili gerçek oran ve takım gol istatistikleri varsa eklenir.
-      if (hasGoalStats && Number(o.over25) > 1) {
-        const overP = clamp(0.48 + ((homeGF + awayGF) - (homeGA + awayGA)) * 0.035, 0.2, 0.8);
-        markets.push({ key: "over25", label: "2.5 ÜST", p: overP, odds: Number(o.over25), model: pct(overP), implied: pct(1 / Number(o.over25)), value: pct(overP - 1 / Number(o.over25)) });
+      // Son 5 maçın gol ortalamalarından bağımsız Poisson gol olasılıkları hesaplanır.
+      function poisson(lambda, goals) {
+        let p = Math.exp(-lambda);
+        for (let i = 1; i <= goals; i++) p *= lambda / i;
+        return p;
       }
-      if (hasGoalStats && Number(o.under25) > 1) {
-        const underP = clamp(0.52 - ((homeGF + awayGF) - (homeGA + awayGA)) * 0.035, 0.2, 0.8);
-        markets.push({ key: "under25", label: "2.5 ALT", p: underP, odds: Number(o.under25), model: pct(underP), implied: pct(1 / Number(o.under25)), value: pct(underP - 1 / Number(o.under25)) });
+      if (hasGoalStats) {
+        const homeLambda = clamp((homeGF + awayGA) / 2, 0.15, 4.5);
+        const awayLambda = clamp((awayGF + homeGA) / 2, 0.15, 4.5);
+        let under25P = 0;
+        let bttsYesP = 0;
+        for (let h = 0; h <= 10; h++) {
+          for (let a = 0; a <= 10; a++) {
+            const probability = poisson(homeLambda, h) * poisson(awayLambda, a);
+            if (h + a <= 2) under25P += probability;
+            if (h > 0 && a > 0) bttsYesP += probability;
+          }
+        }
+        markets.push(
+          { key: "under25", group: "goals", label: "2.5 ALT", p: under25P, odds: Number(o.under25) > 1 ? Number(o.under25) : null },
+          { key: "over25", group: "goals", label: "2.5 ÜST", p: 1 - under25P, odds: Number(o.over25) > 1 ? Number(o.over25) : null },
+          { key: "bttsYes", group: "btts", label: "KG VAR", p: bttsYesP, odds: Number(o.bttsYes) > 1 ? Number(o.bttsYes) : null },
+          { key: "bttsNo", group: "btts", label: "KG YOK", p: 1 - bttsYesP, odds: Number(o.bttsNo) > 1 ? Number(o.bttsNo) : null }
+        );
+      }
+
+      for (const market of markets) {
+        market.model = pct(market.p);
+        market.implied = market.odds ? pct(1 / market.odds) : null;
+        market.value = market.odds ? pct(market.p - 1 / market.odds) : null;
       }
 
       const hasOdds = markets.some(x => x.odds !== null);
@@ -136,6 +153,12 @@ export function analyzeMatches(ms = []) {
           key: x.key, label: x.label, odds: x.odds,
           implied: x.implied, model: x.model, value: x.value,
           p: x.p
+        })),
+        marketPredictions: markets.map(x => ({
+          key: x.key, group: x.group, label: x.label,
+          odds: x.odds, oddsAvailable: x.odds !== null,
+          p: x.p, model: x.model, implied: x.implied, value: x.value,
+          confidence: pct(clamp(confidenceBase + Math.max(0, x.p - 0.35) * 0.45, 0.30, quality === "fixture_only" ? 0.48 : 0.76))
         })),
         probabilities: { home: pct(homeP), draw: pct(drawP), away: pct(awayP) },
         confidence: pct(confidence),
