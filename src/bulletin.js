@@ -1,7 +1,8 @@
 const API_BASE = process.env.API_FOOTBALL_BASE_URL || "https://v3.football.api-sports.io";
 const TZ = process.env.API_FOOTBALL_TIMEZONE || "Europe/Istanbul";
-const MAX_MATCHES = Math.max(1, Math.min(10, Number(process.env.MAX_MATCHES || 10)));
-const CACHE_MS = Math.max(60_000, Number(process.env.BULLETIN_CACHE_MS || 3_600_000));
+const MAX_ODDS_PAGES = Math.max(1, Math.min(9, Number(process.env.MAX_ODDS_PAGES || 9)));
+const MAX_MATCHES = MAX_ODDS_PAGES * 10;
+const CACHE_MS = Math.max(60_000, Number(process.env.BULLETIN_CACHE_MS || 10_800_000));
 
 let cache = { at: 0, data: null };
 let refreshPromise = null;
@@ -49,10 +50,7 @@ function findValue(values, wanted) {
 function findGoalLine(bet, side) {
   if (!bet) return null;
   const candidates = (bet.values || []).filter(x => normalize(x.value) === side);
-  const line25 = candidates.find(x => {
-    const line = Number(String(x.handicap ?? "").replace(",", "."));
-    return line === 2.5;
-  });
+  const line25 = candidates.find(x => Number(String(x.handicap ?? "").replace(",", ".")) === 2.5);
   return parseOdd((line25 || candidates[0])?.odd);
 }
 
@@ -60,7 +58,6 @@ function pickBookmaker(bookmakers) {
   if (process.env.API_FOOTBALL_BOOKMAKER_ID) {
     return bookmakers.find(b => String(b.id) === String(process.env.API_FOOTBALL_BOOKMAKER_ID)) || null;
   }
-  // İlk bookmaker'a körlemesine güvenmek yerine, 1X2 pazarı bulunan sağlayıcıyı seç.
   return bookmakers.find(b => (b.bets || []).some(x => {
     const name = normalize(x.name);
     return name.includes("match winner") || name === "1x2";
@@ -72,10 +69,6 @@ function mapOdds(oddsItem, fixture) {
   const winner = findBet(bookmaker, n => n.includes("match winner") || n === "1x2");
   const total = findBet(bookmaker, n => n.includes("over/under") || n.includes("goals over/under"));
   const btts = findBet(bookmaker, n => n.includes("both teams score") || n.includes("btts"));
-
-  const homeOdd = parseOdd(findValue(winner?.values, ["Home", "1"])?.odd);
-  const drawOdd = parseOdd(findValue(winner?.values, ["Draw", "X"])?.odd);
-  const awayOdd = parseOdd(findValue(winner?.values, ["Away", "2"])?.odd);
 
   return {
     id: String(fixture.fixture.id),
@@ -89,9 +82,9 @@ function mapOdds(oddsItem, fixture) {
     kickoff: fixture.fixture.date,
     status: fixture.fixture.status?.short || "NS",
     odds: {
-      home: homeOdd,
-      draw: drawOdd,
-      away: awayOdd,
+      home: parseOdd(findValue(winner?.values, ["Home", "1"])?.odd),
+      draw: parseOdd(findValue(winner?.values, ["Draw", "X"])?.odd),
+      away: parseOdd(findValue(winner?.values, ["Away", "2"])?.odd),
       over25: findGoalLine(total, "over"),
       under25: findGoalLine(total, "under"),
       bttsYes: parseOdd(findValue(btts?.values, ["Yes"])?.odd),
@@ -106,26 +99,36 @@ function mapOdds(oddsItem, fixture) {
 async function refreshBulletin() {
   const date = todayInTZ();
 
-  // /odds yanıtında takım adları bulunmayabilir. Takım/lig isimleri /fixtures ile
-  // fixture ID üzerinden birleştirilir. İki endpoint de tarih bazlı toplu çağrılır.
-  const [fixturesBody, oddsBody] = await Promise.all([
-    api("/fixtures", { date, timezone: TZ }),
-    api("/odds", { date, timezone: TZ, page: 1 })
-  ]);
-
+  // Takım/lig isimleri fixtures'tan, bookmaker oranları odds endpoint'inden alınır.
+  const fixturesBody = await api("/fixtures", { date, timezone: TZ });
   const fixtureMap = new Map(
     (fixturesBody.response || []).map(f => [String(f.fixture?.id), f])
   );
 
-  const matches = (oddsBody.response || [])
+  const firstOddsPage = await api("/odds", { date, timezone: TZ, page: 1 });
+  const totalPages = Math.min(
+    Number(firstOddsPage.paging?.total || 1),
+    MAX_ODDS_PAGES
+  );
+
+  const remainingPages = await Promise.all(
+    Array.from({ length: Math.max(0, totalPages - 1) }, (_, i) =>
+      api("/odds", { date, timezone: TZ, page: i + 2 })
+    )
+  );
+  const oddsItems = [
+    ...(firstOddsPage.response || []),
+    ...remainingPages.flatMap(page => page.response || [])
+  ];
+
+  const matches = oddsItems
     .map(item => {
       const fixture = fixtureMap.get(String(item.fixture?.id));
       return fixture ? mapOdds(item, fixture) : null;
     })
     .filter(Boolean)
     .filter(m => m.home !== "Takım bilgisi yok" && m.away !== "Takım bilgisi yok")
-    .sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff))
-    .slice(0, MAX_MATCHES);
+    .sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff));
 
   cache = {
     at: Date.now(),
@@ -134,12 +137,10 @@ async function refreshBulletin() {
       provider: "API-Football",
       updatedAt: new Date().toISOString(),
       fixtureDate: date,
-      apiRequestsUsed: 2,
-      pagination: {
-        oddsPage: 1,
-        oddsPagesTotal: oddsBody.paging?.total ?? 1,
-        oddsResults: oddsBody.results ?? matches.length
-      },
+      apiRequestsUsed: 1 + totalPages,
+      oddsPagesFetched: totalPages,
+      oddsPagesAvailable: Number(firstOddsPage.paging?.total || 1),
+      oddsPageLimitReached: Number(firstOddsPage.paging?.total || 1) > MAX_ODDS_PAGES,
       matches
     }
   };
