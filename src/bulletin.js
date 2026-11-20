@@ -170,7 +170,7 @@ async function refreshBulletin() {
     return !["finished", "finished after penalties", "finished after extra time", "cancelled", "awarded"].includes(state);
   }).sort((a, b) => new Date(a.date) - new Date(b.date));
 
-  // Önce listede görünen takımların formu alınır; ücretsiz kotada en fazla 20 takım.
+  // Önce büyük lig bültenindeki takımların formu alınır; kotayı korumak için en fazla 40 takım.
   const teamIds = [...new Set(upcoming.flatMap(m => [m.homeTeam?.id, m.awayTeam?.id]).filter(Boolean))]
     .slice(0, FORM_TEAM_LIMIT);
   const formEntries = await Promise.all(teamIds.map(async id => [String(id), await getTeamForm(id, usage)]));
