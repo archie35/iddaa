@@ -10,9 +10,7 @@ services:
       - key: API_FOOTBALL_TIMEZONE
         value: Europe/Istanbul
       - key: MAX_MATCHES
-        value: "15"
-      - key: FIXTURE_DAYS
-        value: "3"
+        value: "10"
       - key: BULLETIN_CACHE_MS
         value: "3600000"
       - key: ALLOW_DEMO
