@@ -5,13 +5,15 @@ services:
     buildCommand: npm install
     startCommand: npm start
     envVars:
-      - key: API_FOOTBALL_KEY
+      - key: HIGHLIGHTLY_API_KEY
         sync: false
-      - key: API_FOOTBALL_TIMEZONE
+      - key: HIGHLIGHTLY_BASE_URL
+        value: https://soccer.highlightly.net
+      - key: HIGHLIGHTLY_TIMEZONE
         value: Europe/Istanbul
-      - key: MAX_ODDS_PAGES
-        value: "9"
+      - key: HIGHLIGHTLY_MAX_FORM_TEAMS
+        value: "20"
       - key: BULLETIN_CACHE_MS
-        value: "10800000"
+        value: "28800000"
       - key: ALLOW_DEMO
         value: "false"
