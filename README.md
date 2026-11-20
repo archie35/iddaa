@@ -1,26 +1,31 @@
 # IDDAA AI Predictor
 
-API-Football verileriyle gerçek maç fikstürü ve bookmaker oranlarını analiz eder.
+Highlightly Football API üzerinden gerçek maç fikstürlerini alır ve yerel tahmin modeliyle analiz eder.
 
-## Maç sayısı, takım adları ve oranlar
+## Veri kaynağı
 
-API-Football'ın `/odds` endpoint'i sayfa başına 10 maç döndürür. Tüm sonuçları tek bir HTTP isteğinde almak mümkün değildir. Uygulama artık `paging.total` bilgisini okuyup sayfaları sırayla/toplu şekilde çeker; varsayılan olarak en fazla 9 odds sayfası (90 oranlı maç) alır.
+- Sağlayıcı: Highlightly Football API
+- Ana adres: `https://soccer.highlightly.net`
+- Türkiye ve Avrupa maçları: API'nin kapsadığı liglerden alınır. Servis 950+ lig ve 170+ ülke kapsamı bildirmektedir.
+- Fikstür aralığı: Bugün ve takip eden 6 gün.
+- Takım formu: `/last-five-games?teamId=...` endpoint'iyle son 5 tamamlanmış maç.
+- Önbellek: Varsayılan 8 saat; takım formu ayrıca 6 saat saklanır.
+- Ücretsiz Basic kota: Günlük 100 istek. Bir yenilemede 7 fikstür isteği ve en fazla 20 takım formu isteği yapılır. Render yeniden başlatılırsa bellek önbelleği sıfırlanır.
 
-Takım ve lig adları `/fixtures?date=...` yanıtından alınır, oranlarla fixture ID üzerinden birleştirilir. Böylece odds yanıtında bulunmayan takım adları tamamlanır. Bir yenilemede 1 fixtures isteği + 0-9 odds isteği yapılır. Oran endpoint'i hata verirse fikstürler yine gösterilir ve oran alanları boş kalır.
+## Oranlar
 
-API-Football ön maç oranları yaklaşık her 3 saatte güncellenir; bu nedenle varsayılan önbellek 3 saattir. Dokümantasyon, odds için 1 çağrı/3 saat önerir. Ücretsiz planın günlük kotasını korumak için 9 sayfalık sınır vardır. Günün maç sayısı 90'dan fazlaysa bazı oranlı maçlar listelenmeyebilir.
-
-Oranlar API-Football'ın bookmaker kaynaklarından gelir; iddaa.com oranı oldukları garanti edilmez. İlk uygun bookmaker seçilir. Belirli bir sağlayıcı istenirse Render'da `API_FOOTBALL_BOOKMAKER_ID` tanımlanabilir.
+Highlightly Basic/Free planında bahis oranları sunulmaz. Bu nedenle ücretsiz planda oranlar boş kalır, fakat maç tahminleri takım formu ve gol ortalamalarıyla üretilir. Oranı olmayan maçlar toplam oranlı kuponlara dahil edilmez. Ücretli bir oran planı kullanılacaksa odds endpoint entegrasyonu ayrıca etkinleştirilmelidir.
 
 ## Render Environment Variables
 
-- `API_FOOTBALL_KEY`: API-Football dashboard anahtarı
-- `API_FOOTBALL_TIMEZONE`: `Europe/Istanbul`
-- `MAX_ODDS_PAGES`: `9` (en fazla 90 oranlı maç)
-- `BULLETIN_CACHE_MS`: `10800000` (3 saat)
+- `HIGHLIGHTLY_API_KEY`: Highlightly Dashboard API anahtarı
+- `HIGHLIGHTLY_BASE_URL`: `https://soccer.highlightly.net`
+- `HIGHLIGHTLY_TIMEZONE`: `Europe/Istanbul`
+- `HIGHLIGHTLY_MAX_FORM_TEAMS`: Yenilemede formu alınacak azami takım sayısı (varsayılan 20)
+- `BULLETIN_CACHE_MS`: Önbellek süresi (varsayılan 8 saat)
 - `ALLOW_DEMO`: `false`
 
-API anahtarını GitHub'a ekleme; yalnızca Render Environment bölümünde tut.
+API anahtarını GitHub'a veya frontend koduna koyma. Yalnızca Render > Environment bölümünde sakla. Eski `API_FOOTBALL_KEY` değişkeni artık kullanılmıyor.
 
 ## Çalıştırma
 
@@ -29,8 +34,8 @@ npm install
 npm start
 ```
 
-API anahtarı yoksa gerçek veri modu hata verir; sahte maç üretmez. API geçici olarak hata verirse bellekteki son başarılı fikstür korunur. Render yeniden başlatıldığında bellek cache'i sıfırlanır.
+API geçici olarak hata verirse bellekteki son başarılı fikstür korunur. Render yeniden başlatıldığında bellek cache'i sıfırlanır.
 
 ## Tahmin modeli
 
-Oran varsa yerel olasılık modeli oranlarla karşılaştırılır. Oran yoksa da 1X2 için olasılık tahmini üretilir; oran, implied probability ve değer alanları boş kalır. Oranı olmayan maçlar toplam oranlı kuponlara dahil edilmez. Takım formu/istatistikleri yoksa model tarafsız başlangıç olasılıkları kullanır ve güven seviyesini düşük tutar; takım verisi uydurmaz. Bu uygulama bağımsız doğrulanmış/eğitilmiş bir makine öğrenmesi modeli değildir. Tahminler garanti vermez; bahis kayıp riski taşır.
+Son beş maç formu ve maç başına atılan/yenilen gol ortalamaları modele aktarılır. Bu veriler bulunamazsa model sınırlı veri uyarısıyla daha düşük güven seviyesinde tahmin üretir; takım verisi uydurmaz. Bu uygulama bağımsız doğrulanmış/eğitilmiş bir makine öğrenmesi modeli değildir. Tahminler garanti vermez; bahis kayıp riski taşır.
