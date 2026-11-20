@@ -85,5 +85,14 @@ async function load() {
 }
 
 $("#load").addEventListener("click", load);
-$("#marketType").addEventListener("change", () => render(matches));
-load();
+$("#marketType").addEventListener("change", () => {
+  const selected = Boolean($("#marketType").value);
+  $("#load").disabled = !selected;
+  if (matches.length) render(matches);
+  else $("#status").textContent = selected
+    ? "Analiz türü seçildi. Bülteni almak ve analiz etmek için butona bas."
+    : "Başlamak için önce analiz türünü seç.";
+});
+
+$("#load").disabled = true;
+$("#status").textContent = "Bülten henüz yüklenmedi. Önce analiz türünü seç, ardından Maçları Analiz Et butonuna bas.";
